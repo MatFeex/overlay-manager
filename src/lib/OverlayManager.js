@@ -217,6 +217,9 @@ export class OverlayManager extends EventEmitter {
         name: name || `Image ${this._featureCounter}`,
         imageUrl: dataUrl,
         opacity: 0.7,
+        scale: 1.0,
+        baseWidth: w,
+        baseHeight: h,
       };
 
       const feature = new Feature({
@@ -287,6 +290,45 @@ export class OverlayManager extends EventEmitter {
     if (!feature) return;
 
     feature.set(property, value);
+
+    // Dynamic scaling for image overlays centered on their current position
+    if (property === 'scale' && feature.get('type') === 'image') {
+      const scale = Number(value) || 1.0;
+      const baseWidth = feature.get('baseWidth');
+      const baseHeight = feature.get('baseHeight');
+      if (baseWidth && baseHeight) {
+        const geom = feature.getGeometry();
+        let center;
+        if (geom.getType() === 'Polygon') {
+          const extent = geom.getExtent();
+          center = [
+            (extent[0] + extent[2]) / 2,
+            (extent[1] + extent[3]) / 2,
+          ];
+        }
+
+        if (center) {
+          const w = baseWidth * scale;
+          const h = baseHeight * scale;
+          const minX = center[0] - w;
+          const maxX = center[0] + w;
+          const minY = center[1] - h;
+          const maxY = center[1] + h;
+
+          const newGeom = new Polygon([
+            [
+              [minX, minY],
+              [maxX, minY],
+              [maxX, maxY],
+              [minX, maxY],
+              [minX, minY],
+            ],
+          ]);
+          feature.setGeometry(newGeom);
+        }
+      }
+    }
+
     feature.changed();
     this._vectorSource.changed();
     this._syncFeatures();
@@ -567,6 +609,9 @@ export class OverlayManager extends EventEmitter {
       emoji: feature.get('emoji'),
       emojiSize: feature.get('emojiSize'),
       imageUrl: feature.get('imageUrl'),
+      scale: feature.get('scale'),
+      baseWidth: feature.get('baseWidth'),
+      baseHeight: feature.get('baseHeight'),
       coordinates,
       ...extra,
     };

@@ -92,6 +92,23 @@
             />
           </div>
 
+          <!-- Image Scale (Image Overlay only) -->
+          <div class="form-group" v-if="selectedFeature.type === 'image'">
+            <div class="form-label-row">
+              <label class="form-label">Image Scale</label>
+              <span class="form-value font-mono">{{ Math.round((selectedFeature.scale || 1.0) * 100) }}%</span>
+            </div>
+            <input 
+              type="range" 
+              class="form-range" 
+              min="0.1" 
+              max="4" 
+              step="0.05"
+              :value="selectedFeature.scale || 1.0"
+              @input="handlePropUpdate('scale', parseFloat($event.target.value))"
+            />
+          </div>
+
           <!-- Outline Color (Polygon/Circle) -->
           <div class="form-group" v-if="selectedFeature.type === 'polygon' || selectedFeature.type === 'circle'">
             <label class="form-label">Outline Color</label>
