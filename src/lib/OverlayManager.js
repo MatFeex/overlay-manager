@@ -24,10 +24,15 @@
 
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
+import Feature from 'ol/Feature';
+import Polygon from 'ol/geom/Polygon';
 import { Draw, Modify, Translate, Select, Snap } from 'ol/interaction';
 import { Style, Fill, Stroke, Circle as CircleStyle, Text } from 'ol/style';
 import { toLonLat } from 'ol/proj';
 import { unByKey } from 'ol/Observable';
+
+// Module-level image cache for canvas overlays
+const imageCache = new Map();
 
 import { EventEmitter } from './EventEmitter.js';
 import { hexToRgba, getCirclePolygonCoords } from './helpers.js';
@@ -161,6 +166,77 @@ export class OverlayManager extends EventEmitter {
     this._selectInteraction.setActive(true);
     this._translateInteraction.setActive(true);
     this.emit('draw:stop');
+  }
+
+  /**
+   * Add a programmatically imported image overlay centered in the view.
+   * @param {string} dataUrl - Base64 Data URL or path of the image
+   * @param {string} [name] - Desired overlay name
+   */
+  addImageOverlay(dataUrl, name = '') {
+    const view = this._map.getView();
+    const center = view.getCenter();
+    const resolution = view.getResolution();
+
+    // Default size: 300x300 pixels
+    const halfWidth = resolution * 150;
+    const halfHeight = resolution * 150;
+
+    // Load image to preserve aspect ratio
+    const img = new Image();
+    img.onload = () => {
+      const aspect = img.width / img.height;
+      let w = halfWidth;
+      let h = halfHeight;
+      if (aspect > 1) {
+        w = halfWidth * aspect;
+      } else {
+        h = halfHeight / aspect;
+      }
+
+      const minX = center[0] - w;
+      const maxX = center[0] + w;
+      const minY = center[1] - h;
+      const maxY = center[1] + h;
+
+      const geometry = new Polygon([
+        [
+          [minX, minY],
+          [maxX, minY],
+          [maxX, maxY],
+          [minX, maxY],
+          [minX, minY],
+        ],
+      ]);
+
+      const id = this._generateId('image');
+      const properties = {
+        ...BASE_FEATURE_DEFAULTS,
+        id,
+        type: 'image',
+        name: name || `Image ${this._featureCounter}`,
+        imageUrl: dataUrl,
+        opacity: 0.7,
+      };
+
+      const feature = new Feature({
+        geometry,
+      });
+      feature.setId(id);
+      for (const [key, val] of Object.entries(properties)) {
+        feature.set(key, val);
+      }
+
+      this._vectorSource.addFeature(feature);
+
+      // Select the newly added feature
+      this._selectInteraction.getFeatures().clear();
+      this._selectInteraction.getFeatures().push(feature);
+      this._setSelectedFeature(feature);
+      this._syncFeatures();
+      this.emit('feature:add', this._extractProps(feature));
+    };
+    img.src = dataUrl;
   }
 
   // ── Public API: Selection ──────────────────────────────────────
@@ -490,6 +566,7 @@ export class OverlayManager extends EventEmitter {
       textSize: feature.get('textSize'),
       emoji: feature.get('emoji'),
       emojiSize: feature.get('emojiSize'),
+      imageUrl: feature.get('imageUrl'),
       coordinates,
       ...extra,
     };
@@ -597,6 +674,58 @@ export class OverlayManager extends EventEmitter {
             overflow: true,
           }),
         }));
+        break;
+      }
+
+      case 'image': {
+        const imageUrl = feature.get('imageUrl');
+        
+        // Push fallback/outline border
+        styles.push(new Style({
+          stroke: new Stroke({
+            color: isSelected ? '#a855f7' : strokeColor || '#ffffff',
+            width: isSelected ? strokeWidth + 2 : strokeWidth || 1.5,
+            lineDash: isSelected ? [6, 6] : undefined,
+          }),
+          fill: new Fill({ color: 'rgba(255, 255, 255, 0.05)' })
+        }));
+
+        if (imageUrl) {
+          let img = imageCache.get(imageUrl);
+          if (!img) {
+            img = new Image();
+            img.onload = () => {
+              imageCache.set(imageUrl, img);
+              this._map.render();
+            };
+            img.src = imageUrl;
+          }
+
+          if (img && img.complete && img.naturalWidth > 0) {
+            styles.push(new Style({
+              renderer(coordinates, state) {
+                const ctx = state.context;
+                // Coordinates is [[ [x1, y1], [x2, y2], [x3, y3], [x4, y4] ]]
+                const ring = coordinates[0];
+                if (!ring || ring.length < 3) return;
+
+                const xs = ring.map((c) => c[0]);
+                const ys = ring.map((c) => c[1]);
+                const minX = Math.min(...xs);
+                const maxX = Math.max(...xs);
+                const minY = Math.min(...ys);
+                const maxY = Math.max(...ys);
+                const width = maxX - minX;
+                const height = maxY - minY;
+
+                ctx.save();
+                ctx.globalAlpha = opacity;
+                ctx.drawImage(img, minX, minY, width, height);
+                ctx.restore();
+              },
+            }));
+          }
+        }
         break;
       }
     }

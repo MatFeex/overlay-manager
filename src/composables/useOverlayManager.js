@@ -12,6 +12,7 @@
 
 import { ref, watch, onUnmounted, shallowRef } from 'vue';
 import { OverlayManager } from '../lib/OverlayManager.js';
+import { KmzExporter } from '../lib/KmzExporter.js';
 import { DEFAULT_TOOL_STYLES } from '../lib/defaults.js';
 
 /**
@@ -139,6 +140,27 @@ export function useOverlayManager(mapRef, options = {}) {
     if (manager.value) manager.value.downloadKML(exportOptions);
   }
 
+  /**
+   * Export features as KMZ and trigger download.
+   * @param {object} [exportOptions]
+   */
+  function downloadKMZ(exportOptions = {}) {
+    if (manager.value) {
+      KmzExporter.downloadKMZ(features.value, exportOptions);
+    }
+  }
+
+  /**
+   * Programmatically add an image overlay.
+   * @param {string} dataUrl - Base64 Data URL or path
+   * @param {string} [name] - Optional overlay name
+   */
+  function addImageOverlay(dataUrl, name) {
+    if (manager.value) {
+      manager.value.addImageOverlay(dataUrl, name);
+    }
+  }
+
   return {
     // Core instance (escape hatch for advanced usage)
     manager,
@@ -156,5 +178,7 @@ export function useOverlayManager(mapRef, options = {}) {
     deleteFeature,
     clearAll,
     downloadKML,
+    downloadKMZ,
+    addImageOverlay,
   };
 }

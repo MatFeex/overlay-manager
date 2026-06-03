@@ -9,7 +9,7 @@
  * Supported drawing tool types.
  * @type {string[]}
  */
-export const TOOL_TYPES = ['polygon', 'circle', 'marker', 'annotation', 'emoji'];
+export const TOOL_TYPES = ['polygon', 'circle', 'marker', 'annotation', 'emoji', 'image'];
 
 /**
  * Map from OL geometry type string to internal tool type.
@@ -22,6 +22,7 @@ export const TOOL_TO_OL_TYPE = {
   marker: 'Point',
   annotation: 'Point',
   emoji: 'Point',
+  image: 'Polygon',
 };
 
 /**
@@ -55,6 +56,9 @@ export const DEFAULT_TOOL_STYLES = {
   emoji: {
     emoji: '🚀',
     emojiSize: 32,
+  },
+  image: {
+    opacity: 0.7,
   },
 };
 

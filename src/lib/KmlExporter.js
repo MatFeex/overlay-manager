@@ -19,8 +19,15 @@ export class KmlExporter {
    */
   static serialize(features, options = {}) {
     const opts = { ...DEFAULT_EXPORT_OPTIONS, ...options };
+    const assetMap = options.assetMap || new Map();
 
-    const placemarks = features.map((f) => KmlExporter._serializePlacemark(f));
+    const elements = features.map((f) => {
+      if (f.type === 'image') {
+        return KmlExporter._serializeGroundOverlay(f, assetMap);
+      } else {
+        return KmlExporter._serializePlacemark(f);
+      }
+    });
 
     return [
       '<?xml version="1.0" encoding="UTF-8"?>',
@@ -28,7 +35,7 @@ export class KmlExporter {
       '  <Document>',
       `    <name>${escapeXml(opts.documentName)}</name>`,
       `    <description>${escapeXml(opts.documentDescription)}</description>`,
-      ...placemarks,
+      ...elements,
       '  </Document>',
       '</kml>',
     ].join('\n');
@@ -79,6 +86,53 @@ export class KmlExporter {
     lines.push(...KmlExporter._serializeGeometry(props));
 
     lines.push('    </Placemark>');
+    return lines.join('\n');
+  }
+
+  /**
+   * Serialize a single feature into a KML <GroundOverlay> block.
+   * @param {object} props - Feature property object
+   * @param {Map<string, string>} [assetMap] - Mapping of feature ID to relative ZIP file path
+   * @returns {string} KML GroundOverlay XML fragment
+   */
+  static _serializeGroundOverlay(props, assetMap = new Map()) {
+    const { id, name, opacity, coordinates, imageUrl } = props;
+    const assetPath = assetMap.get(id) || imageUrl || '';
+
+    // Calculate LatLonBox coordinates
+    const lons = coordinates.map((c) => c[0]);
+    const lats = coordinates.map((c) => c[1]);
+    const west = Math.min(...lons);
+    const east = Math.max(...lons);
+    const south = Math.min(...lats);
+    const north = Math.max(...lats);
+
+    const lines = [];
+    lines.push('    <GroundOverlay>');
+    lines.push(`      <name>${escapeXml(name || 'Image Overlay')}</name>`);
+    lines.push('      <description>Image Overlay Element</description>');
+    
+    if (opacity !== undefined) {
+      const alphaHex = Math.round(opacity * 255)
+        .toString(16)
+        .padStart(2, '0');
+      lines.push(`      <color>${alphaHex}ffffff</color>`);
+    }
+
+    lines.push(
+      '      <Icon>',
+      `        <href>${escapeXml(assetPath)}</href>`,
+      '      </Icon>',
+      '      <LatLonBox>',
+      `        <north>${north.toFixed(6)}</north>`,
+      `        <south>${south.toFixed(6)}</south>`,
+      `        <east>${east.toFixed(6)}</east>`,
+      `        <west>${west.toFixed(6)}</west>`,
+      '        <rotation>0</rotation>',
+      '      </LatLonBox>',
+      '    </GroundOverlay>',
+    );
+
     return lines.join('\n');
   }
 

@@ -32,8 +32,7 @@
             v-for="tool in availableTools" 
             :key="tool.type"
             class="tool-btn" 
-            :class="{ 'emoji-tool-btn': tool.type === 'emoji' }"
-            @click="startDraw(tool.type)"
+            @click="handleToolClick(tool.type)"
           >
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" v-html="tool.icon" />
             {{ tool.label }}
@@ -76,10 +75,10 @@
             </div>
           </div>
 
-          <!-- Fill Opacity (Polygon/Circle) -->
-          <div class="form-group" v-if="selectedFeature.type === 'polygon' || selectedFeature.type === 'circle'">
+          <!-- Fill Opacity (Polygon/Circle/Image) -->
+          <div class="form-group" v-if="selectedFeature.type === 'polygon' || selectedFeature.type === 'circle' || selectedFeature.type === 'image'">
             <div class="form-label-row">
-              <label class="form-label">Fill Opacity</label>
+              <label class="form-label">{{ selectedFeature.type === 'image' ? 'Image Opacity' : 'Fill Opacity' }}</label>
               <span class="form-value font-mono">{{ Math.round(selectedFeature.opacity * 100) }}%</span>
             </div>
             <input 
@@ -201,18 +200,28 @@
           <!-- Geometry details read-only -->
           <div class="form-group font-mono geom-details">
             <span class="geom-title">Spatial Data</span>
+            <div class="geom-row">
+              <span class="geom-label">Type:</span>
+              <span class="geom-val" style="text-transform: capitalize;">{{ selectedFeature.type }}</span>
+            </div>
             <div v-if="selectedFeature.type === 'circle' && selectedFeature.radius" class="geom-row">
               <span class="geom-label">Radius:</span>
               <span class="geom-val">{{ selectedFeature.radius.toFixed(1) }} m</span>
             </div>
             <div class="geom-row">
-              <span class="geom-label">Position:</span>
-              <span class="geom-val text-truncate" v-if="isPointType(selectedFeature.type)">
-                {{ selectedFeature.coordinates[0].toFixed(5) }}, {{ selectedFeature.coordinates[1].toFixed(5) }}
+              <span class="geom-label">{{ isPointType(selectedFeature.type) ? 'Position:' : 'Center:' }}</span>
+              <span class="geom-val text-truncate">
+                <span v-if="isPointType(selectedFeature.type)">
+                  {{ selectedFeature.coordinates[0].toFixed(5) }}, {{ selectedFeature.coordinates[1].toFixed(5) }}
+                </span>
+                <span v-else>
+                  {{ getCenterOfCoords(selectedFeature.coordinates) }}
+                </span>
               </span>
-              <span class="geom-val text-truncate" v-else>
-                Polygon ({{ selectedFeature.coordinates.length }} vertices)
-              </span>
+            </div>
+            <div v-if="!isPointType(selectedFeature.type)" class="geom-row">
+              <span class="geom-label">Vertices:</span>
+              <span class="geom-val">{{ selectedFeature.coordinates.length }} points</span>
             </div>
           </div>
 
@@ -275,11 +284,11 @@
 
       <!-- Export Panel Action -->
       <div class="export-panel" v-if="features.length > 0">
-        <button class="export-btn neon-border" @click="downloadKML({ filename: exportFilename })">
+        <button class="export-btn neon-border" @click="handleExportKMZ">
           <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
           </svg>
-          Export KML Overlay
+          Export KMZ Overlay
         </button>
       </div>
     </div>
@@ -289,6 +298,15 @@
       <div class="alert-pulse"></div>
       <span class="font-mono">PLACING {{ activeDrawingTool.toUpperCase() }}...</span>
     </div>
+
+    <!-- Hidden file input for Image Overlay upload -->
+    <input 
+      type="file" 
+      ref="imageInput" 
+      accept="image/*" 
+      style="display: none" 
+      @change="onImageSelected" 
+    />
   </div>
 </template>
 
@@ -346,6 +364,7 @@ const TOOL_ICONS = {
   marker: '<path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />',
   annotation: '<path stroke-linecap="round" stroke-linejoin="round" d="M7 8h10M7 12h10M7 16h10" />',
   emoji: '<path stroke-linecap="round" stroke-linejoin="round" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />',
+  image: '<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />',
 };
 
 const TOOL_LABELS = {
@@ -354,6 +373,7 @@ const TOOL_LABELS = {
   marker: 'Geo Marker',
   annotation: 'Text Label',
   emoji: 'Emoji Marker',
+  image: 'Image Overlay',
 };
 
 const availableTools = computed(() =>
@@ -379,7 +399,41 @@ const {
   deleteFeature,
   clearAll,
   downloadKML,
+  downloadKMZ,
+  addImageOverlay,
 } = useOverlayManager(mapRef, props.managerOptions);
+
+const imageInput = ref(null);
+
+function handleToolClick(type) {
+  if (type === 'image') {
+    imageInput.value?.click();
+  } else {
+    startDraw(type);
+  }
+}
+
+function onImageSelected(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const dataUrl = e.target.result;
+    if (dataUrl) {
+      addImageOverlay(dataUrl, file.name.replace(/\.[^/.]+$/, ''));
+    }
+  };
+  reader.readAsDataURL(file);
+
+  // Reset the file input so the same image can be re-uploaded if needed
+  event.target.value = '';
+}
+
+function handleExportKMZ() {
+  const kmzFilename = props.exportFilename.replace(/\.kml$/i, '.kmz');
+  downloadKMZ({ filename: kmzFilename });
+}
 
 // ── Local UI state ──────────────────────────────────────────────
 
@@ -419,6 +473,18 @@ function handleClearAll() {
  */
 function isPointType(type) {
   return type === 'marker' || type === 'annotation' || type === 'circle' || type === 'emoji';
+}
+
+/**
+ * Get geographic center of a list of coordinates.
+ */
+function getCenterOfCoords(coordinates) {
+  if (!coordinates || coordinates.length === 0) return '';
+  const lons = coordinates.map((c) => c[0]);
+  const lats = coordinates.map((c) => c[1]);
+  const lon = (Math.min(...lons) + Math.max(...lons)) / 2;
+  const lat = (Math.min(...lats) + Math.max(...lats)) / 2;
+  return `${lon.toFixed(5)}, ${lat.toFixed(5)}`;
 }
 </script>
 
@@ -667,6 +733,11 @@ function isPointType(type) {
 .type-badge.emoji {
   background: rgba(245, 158, 11, 0.15);
   color: #d97706;
+}
+
+.type-badge.image {
+  background: rgba(6, 182, 212, 0.12);
+  color: #0891b2;
 }
 
 .property-form {
@@ -936,6 +1007,11 @@ function isPointType(type) {
 
 .shape-indicator.polygon {
   border-radius: 2px;
+}
+
+.shape-indicator.image {
+  border-radius: 2px;
+  background-color: #0891b2;
 }
 
 .emoji-indicator {
