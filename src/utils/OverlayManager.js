@@ -154,15 +154,27 @@ export class OverlayManager {
   }
 
   /**
+   * Scans and removes any active Draw interactions from the map
+   */
+  clearDrawInteractions() {
+    const interactions = this.map.getInteractions().getArray();
+    const toRemove = interactions.filter(inter => inter instanceof Draw);
+    toRemove.forEach(inter => {
+      try {
+        inter.abortDrawing();
+      } catch (e) {}
+      this.map.removeInteraction(inter);
+    });
+    this.drawInteraction = null;
+  }
+
+  /**
    * Start drawing a shape
    * @param {string} type - 'polygon' | 'circle' | 'marker' | 'annotation'
    * @param {object} defaultProps - Optional defaults for colors/labels
    */
   startDrawing(type, defaultProps = {}) {
-    if (this.drawInteraction) {
-      this.map.removeInteraction(this.drawInteraction);
-      this.drawInteraction = null;
-    }
+    this.clearDrawInteractions();
     
     // Temporarily disable translation/selection to allow click drawing
     this.selectInteraction.setActive(false);
@@ -218,10 +230,7 @@ export class OverlayManager {
    * Stop active drawing interaction
    */
   stopDrawing() {
-    if (this.drawInteraction) {
-      this.map.removeInteraction(this.drawInteraction);
-      this.drawInteraction = null;
-    }
+    this.clearDrawInteractions();
     this.selectInteraction.setActive(true);
     this.translateInteraction.setActive(true);
     this.emit('draw-stopped');
