@@ -1,6 +1,6 @@
 <script setup>
 import { ref } from 'vue';
-import MapContainer from './components/MapContainer.vue';
+import Map from './components/Map.vue';
 import MapOverlay from './components/MapOverlay.vue';
 
 const map = ref(null);
@@ -8,7 +8,7 @@ const map = ref(null);
 
 <template>
   <div class="app-viewport">
-    <MapContainer @map-ready="map = $event" />
+    <Map @map-ready="map = $event" />
     <MapOverlay v-if="map" :map="map" />
   </div>
 </template>

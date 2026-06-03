@@ -301,7 +301,6 @@
 <script setup>
 import { ref, onMounted, onUnmounted, watch } from 'vue';
 import { OverlayManager } from '../utils/OverlayManager';
-import { toLonLat } from 'ol/proj';
 
 const props = defineProps({
   map: {
@@ -320,10 +319,6 @@ const pointerCoords = ref([2.3522, 48.8566]);
 const features = ref([]);
 const selectedFeature = ref(null);
 const activeDrawingTool = ref(null);
-
-// OpenLayers Event Keys for listeners detaching
-let moveEndKey = null;
-let pointerMoveKey = null;
 
 const initializeOverlayTool = (olMap) => {
   if (!olMap) return;
@@ -351,35 +346,21 @@ const initializeOverlayTool = (olMap) => {
     activeDrawingTool.value = null;
   });
 
-  // Track Map Movement and Pointer Coordinates directly
-  const view = olMap.getView();
-  const updateMapInfo = () => {
-    center.value = toLonLat(view.getCenter());
-    zoomLevel.value = view.getZoom();
-  };
-
-  moveEndKey = olMap.on('moveend', updateMapInfo);
-  pointerMoveKey = olMap.on('pointermove', (event) => {
-    if (event.dragging) return;
-    pointerCoords.value = toLonLat(event.coordinate);
+  // Subscribe to map center/zoom and pointer coordinate changes from the manager
+  overlayManager.on('map-moved', (data) => {
+    center.value = data.center;
+    zoomLevel.value = data.zoom;
   });
 
-  // Initial trigger
-  updateMapInfo();
+  overlayManager.on('pointer-moved', (coordinate) => {
+    pointerCoords.value = coordinate;
+  });
 };
 
 const cleanup = () => {
   if (overlayManager) {
     overlayManager.destroy();
     overlayManager = null;
-  }
-  if (props.map) {
-    if (moveEndKey) {
-      props.map.un('moveend', moveEndKey.listener || moveEndKey);
-    }
-    if (pointerMoveKey) {
-      props.map.un('pointermove', pointerMoveKey.listener || pointerMoveKey);
-    }
   }
   features.value = [];
   selectedFeature.value = null;
@@ -405,7 +386,7 @@ const startDraw = (tool) => {
   // Defaults for styling
   let defaults = {
     color: '#a855f7',
-    strokeColor: '#ffffff',
+    strokeColor: '#000',
     strokeWidth: 2,
     opacity: 0.3
   };
@@ -483,6 +464,12 @@ const formatCoords = (coords) => {
 </script>
 
 <style scoped>
+.icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
 .ui-overlay {
   position: absolute;
   top: 0;

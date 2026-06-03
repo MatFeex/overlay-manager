@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Mission Overlay</name>
+    <description>Overlay exported from Mission Dispatcher</description>
+    <Placemark>
+      <name>Polygon 1</name>
+      <description>Polygon Overlay Element</description>
+      <Style>
+        <LineStyle>
+          <color>ffffffff</color>
+          <width>2</width>
+        </LineStyle>
+        <PolyStyle>
+          <color>4df755a8</color>
+        </PolyStyle>
+      </Style>
+      <Polygon>
+        <outerBoundaryIs>
+          <LinearRing>
+            <coordinates>
+              -6.823581,54.200234,0
+              -9.319675,52.436907,0
+              -5.593112,50.421271,0
+              -2.288424,51.702351,0
+              -5.030613,51.984638,0
+              -2.850923,53.348666,0
+              -6.823581,54.200234,0
+            </coordinates>
+          </LinearRing>
+        </outerBoundaryIs>
+      </Polygon>
+    </Placemark>
+    <Placemark>
+      <name>HEYEHEYE</name>
+      <description>Annotation Overlay Element</description>
+      <Style>
+        <LabelStyle>
+          <color>fff6823b</color>
+          <scale>1.14</scale>
+        </LabelStyle>
+        <IconStyle>
+          <scale>0.0</scale> <!-- Hide marker pin, keep only label -->
+        </IconStyle>
+      </Style>
+      <Point>
+        <coordinates>8.363918,49.494212,0</coordinates>
+      </Point>
+    </Placemark>
+  </Document>
+</kml>

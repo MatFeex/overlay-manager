@@ -46,6 +46,23 @@ function hexToKmlColor(hex, opacity = 1) {
 }
 
 /**
+ * Helper to escape special characters for XML/KML validity
+ */
+function escapeXml(unsafe) {
+  if (unsafe === undefined || unsafe === null) return '';
+  return String(unsafe).replace(/[<>&'"]/g, (c) => {
+    switch (c) {
+      case '<': return '&lt;';
+      case '>': return '&gt;';
+      case '&': return '&amp;';
+      case '\'': return '&apos;';
+      case '"': return '&quot;';
+      default: return c;
+    }
+  });
+}
+
+/**
  * Approximate a circle geometry as a list of EPSG:3857 coordinates
  */
 function getCirclePolygonCoordinates(center, radius, segments = 64) {
@@ -85,6 +102,39 @@ export class OverlayManager {
     this.selectedFeature = null;
     
     this.initInteractions();
+
+    // Map move and pointer tracking listeners
+    this.mapListeners = [];
+    
+    const handleMoveEnd = () => {
+      const currentView = this.map.getView();
+      if (!currentView) return;
+      const centerVal = currentView.getCenter();
+      const zoomVal = currentView.getZoom();
+      if (centerVal !== undefined && zoomVal !== undefined) {
+        this.emit('map-moved', {
+          center: toLonLat(centerVal),
+          zoom: zoomVal
+        });
+      }
+    };
+    
+    const handlePointerMove = (event) => {
+      if (event.dragging) return;
+      const coordinate = toLonLat(event.coordinate);
+      this.emit('pointer-moved', coordinate);
+    };
+
+    const moveKey = this.map.on('moveend', handleMoveEnd);
+    const pointerKey = this.map.on('pointermove', handlePointerMove);
+    
+    this.mapListeners.push({ key: 'moveend', listener: moveKey });
+    this.mapListeners.push({ key: 'pointermove', listener: pointerKey });
+    
+    // Initial trigger for center/zoom
+    setTimeout(() => {
+      handleMoveEnd();
+    }, 50);
   }
 
   // Event Observer
@@ -475,9 +525,13 @@ export class OverlayManager {
       const geom = feature.getGeometry();
       const type = props.type;
       
+      const placemarkName = type === 'annotation' ? (props.text || props.name || type) : (props.name || type);
+      const escapedName = escapeXml(placemarkName);
+      const escapedDescription = escapeXml(`${type.charAt(0).toUpperCase() + type.slice(1)} Overlay Element`);
+
       kml += `    <Placemark>
-      <name>${props.name || type}</name>
-      <description>${type.charAt(0).toUpperCase() + type.slice(1)} Overlay Element</description>
+      <name>${escapedName}</name>
+      <description>${escapedDescription}</description>
 `;
 
       // 1. Export Styles Inline for high portability
@@ -594,6 +648,13 @@ export class OverlayManager {
     if (this.snapInteraction) this.map.removeInteraction(this.snapInteraction);
     
     if (this.vectorLayer) this.map.removeLayer(this.vectorLayer);
+    
+    if (this.mapListeners) {
+      this.mapListeners.forEach(listener => {
+        this.map.un(listener.key, listener.listener.listener || listener.listener);
+      });
+      this.mapListeners = [];
+    }
     
     this.features = [];
     this.listeners = {};
