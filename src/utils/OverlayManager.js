@@ -233,7 +233,7 @@ export class OverlayManager {
     let olType;
     if (type === 'polygon') olType = 'Polygon';
     else if (type === 'circle') olType = 'Circle';
-    else if (type === 'marker' || type === 'annotation') olType = 'Point';
+    else if (type === 'marker' || type === 'annotation' || type === 'emoji') olType = 'Point';
 
     this.drawInteraction = new Draw({
       source: this.vectorSource,
@@ -255,7 +255,9 @@ export class OverlayManager {
         strokeWidth: defaultProps.strokeWidth || 2,
         opacity: defaultProps.opacity !== undefined ? defaultProps.opacity : 0.3,
         text: defaultProps.text || 'Annotation',
-        textSize: defaultProps.textSize || 14
+        textSize: defaultProps.textSize || 14,
+        emoji: defaultProps.emoji || '🚀',
+        emojiSize: defaultProps.emojiSize || 32
       };
 
       feature.setId(id);
@@ -263,15 +265,19 @@ export class OverlayManager {
         feature.set(key, val);
       }
 
+      const currentInteraction = this.drawInteraction;
+
       // Finish drawing session on next tick
       setTimeout(() => {
-        this.stopDrawing();
-        // Select the newly drawn feature
-        this.selectInteraction.getFeatures().clear();
-        this.selectInteraction.getFeatures().push(feature);
-        this.setSelectedFeature(feature);
-        this.syncFeaturesList();
-        this.emit('feature-added', properties);
+        if (this.drawInteraction === currentInteraction) {
+          this.stopDrawing();
+          // Select the newly drawn feature
+          this.selectInteraction.getFeatures().clear();
+          this.selectInteraction.getFeatures().push(feature);
+          this.setSelectedFeature(feature);
+          this.syncFeaturesList();
+          this.emit('feature-added', properties);
+        }
       }, 50);
     });
   }
@@ -418,6 +424,8 @@ export class OverlayManager {
       opacity: feature.get('opacity'),
       text: feature.get('text'),
       textSize: feature.get('textSize'),
+      emoji: feature.get('emoji'),
+      emojiSize: feature.get('emojiSize'),
       coordinates,
       ...extra
     };
@@ -502,6 +510,26 @@ export class OverlayManager {
           overflow: true
         })
       }));
+    } else if (type === 'emoji') {
+      const emojiVal = feature.get('emoji') || '🚀';
+      const emojiSize = feature.get('emojiSize') || 32;
+      
+      styles.push(new Style({
+        // Handle for selection
+        image: new CircleStyle({
+          radius: isSelected ? 6 : 3,
+          fill: new Fill({ color: '#a855f7' }),
+          stroke: new Stroke({ color: '#ffffff', width: 1.5 }),
+          opacity: isSelected ? 0.9 : 0.2
+        }),
+        text: new Text({
+          text: emojiVal,
+          font: `${emojiSize}px sans-serif`,
+          textAlign: 'center',
+          textBaseline: 'middle',
+          overflow: true
+        })
+      }));
     }
 
     return styles;
@@ -525,7 +553,8 @@ export class OverlayManager {
       const geom = feature.getGeometry();
       const type = props.type;
       
-      const placemarkName = type === 'annotation' ? (props.text || props.name || type) : (props.name || type);
+      const placemarkName = type === 'annotation' ? (props.text || props.name || type) :
+                            type === 'emoji' ? (props.emoji || '🚀') : (props.name || type);
       const escapedName = escapeXml(placemarkName);
       const escapedDescription = escapeXml(`${type.charAt(0).toUpperCase() + type.slice(1)} Overlay Element`);
 
@@ -575,6 +604,15 @@ export class OverlayManager {
           <scale>0.0</scale> <!-- Hide marker pin, keep only label -->
         </IconStyle>
 `;
+      } else if (type === 'emoji') {
+        const scaleVal = (props.emojiSize / 32).toFixed(2);
+        kml += `        <LabelStyle>
+          <scale>${scaleVal}</scale>
+        </LabelStyle>
+        <IconStyle>
+          <scale>0.0</scale> <!-- Hide marker pin, keep only emoji -->
+        </IconStyle>
+`;
       }
 
       kml += `      </Style>
@@ -619,7 +657,7 @@ export class OverlayManager {
         </outerBoundaryIs>
       </Polygon>
 `;
-      } else if (type === 'marker' || type === 'annotation') {
+      } else if (type === 'marker' || type === 'annotation' || type === 'emoji') {
         const lonLat = toLonLat(geom.getCoordinates());
         kml += `      <Point>
         <coordinates>${lonLat[0].toFixed(6)},${lonLat[1].toFixed(6)},0</coordinates>

@@ -5,8 +5,7 @@
       <div class="panel-header">
         <div class="brand">
           <div class="pulse-dot"></div>
-          <span class="brand-title">MISSION OVERLAY</span>
-          <span class="brand-version">v1.1.0</span>
+          <span class="brand-title">MAP OVERLAY TOOLS</span>
         </div>
       </div>
 
@@ -30,48 +29,14 @@
 
         <div class="tools-grid" v-if="!activeDrawingTool">
           <button 
+            v-for="tool in availableTools" 
+            :key="tool.type"
             class="tool-btn" 
-            :class="{ active: activeDrawingTool === 'polygon' }"
-            @click="startDraw('polygon')"
+            :class="{ 'emoji-tool-btn': tool.type === 'emoji' }"
+            @click="startDraw(tool.type)"
           >
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M4 10l5-6h6l5 6v6l-5 6H9l-5-6V10z" />
-            </svg>
-            Polygon Zone
-          </button>
-          
-          <button 
-            class="tool-btn" 
-            :class="{ active: activeDrawingTool === 'circle' }"
-            @click="startDraw('circle')"
-          >
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="9" />
-            </svg>
-            Circle Zone
-          </button>
-          
-          <button 
-            class="tool-btn" 
-            :class="{ active: activeDrawingTool === 'marker' }"
-            @click="startDraw('marker')"
-          >
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-              <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            Geo Marker
-          </button>
-          
-          <button 
-            class="tool-btn" 
-            :class="{ active: activeDrawingTool === 'annotation' }"
-            @click="startDraw('annotation')"
-          >
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M7 8h10M7 12h10M7 16h10" />
-            </svg>
-            Text Label
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" v-html="tool.icon" />
+            {{ tool.label }}
           </button>
         </div>
       </div>
@@ -93,11 +58,11 @@
               type="text" 
               class="form-input" 
               :value="selectedFeature.name"
-              @input="updateProp('name', $event.target.value)"
+              @input="handlePropUpdate('name', $event.target.value)"
             />
           </div>
 
-          <!-- Color Properties (Polygon/Circle/Marker/Annotation) -->
+          <!-- Color Properties -->
           <div class="form-group">
             <label class="form-label">{{ selectedFeature.type === 'annotation' ? 'Text Color' : 'Fill Color' }}</label>
             <div class="color-picker-wrapper">
@@ -105,7 +70,7 @@
                 type="color" 
                 class="color-input" 
                 :value="selectedFeature.color" 
-                @input="updateProp('color', $event.target.value)"
+                @input="handlePropUpdate('color', $event.target.value)"
               />
               <span class="color-hex font-mono">{{ selectedFeature.color }}</span>
             </div>
@@ -124,11 +89,11 @@
               max="1" 
               step="0.05"
               :value="selectedFeature.opacity"
-              @input="updateProp('opacity', parseFloat($event.target.value))"
+              @input="handlePropUpdate('opacity', parseFloat($event.target.value))"
             />
           </div>
 
-          <!-- Stroke Style (Polygon/Circle) -->
+          <!-- Outline Color (Polygon/Circle) -->
           <div class="form-group" v-if="selectedFeature.type === 'polygon' || selectedFeature.type === 'circle'">
             <label class="form-label">Outline Color</label>
             <div class="color-picker-wrapper">
@@ -136,13 +101,13 @@
                 type="color" 
                 class="color-input" 
                 :value="selectedFeature.strokeColor" 
-                @input="updateProp('strokeColor', $event.target.value)"
+                @input="handlePropUpdate('strokeColor', $event.target.value)"
               />
               <span class="color-hex font-mono">{{ selectedFeature.strokeColor }}</span>
             </div>
           </div>
 
-          <!-- Stroke Width (Polygon/Circle) -->
+          <!-- Outline Width (Polygon/Circle) -->
           <div class="form-group" v-if="selectedFeature.type === 'polygon' || selectedFeature.type === 'circle'">
             <div class="form-label-row">
               <label class="form-label">Outline Width</label>
@@ -155,22 +120,22 @@
               max="8" 
               step="1"
               :value="selectedFeature.strokeWidth"
-              @input="updateProp('strokeWidth', parseInt($event.target.value))"
+              @input="handlePropUpdate('strokeWidth', parseInt($event.target.value))"
             />
           </div>
 
-          <!-- Annotation Text Content (Text Label) -->
+          <!-- Annotation Text Content -->
           <div class="form-group" v-if="selectedFeature.type === 'annotation'">
             <label class="form-label">Annotation Content</label>
             <textarea 
               class="form-textarea" 
               rows="2"
               :value="selectedFeature.text"
-              @input="updateProp('text', $event.target.value)"
+              @input="handlePropUpdate('text', $event.target.value)"
             ></textarea>
           </div>
 
-          <!-- Annotation Font Size (Text Label) -->
+          <!-- Annotation Font Size -->
           <div class="form-group" v-if="selectedFeature.type === 'annotation'">
             <div class="form-label-row">
               <label class="form-label">Font Size</label>
@@ -183,7 +148,53 @@
               max="42" 
               step="1"
               :value="selectedFeature.textSize"
-              @input="updateProp('textSize', parseInt($event.target.value))"
+              @input="handlePropUpdate('textSize', parseInt($event.target.value))"
+            />
+          </div>
+
+          <!-- Emoji Character Selection -->
+          <div class="form-group" v-if="selectedFeature.type === 'emoji'">
+            <label class="form-label">Select Emoji</label>
+            <div class="emoji-selector-grid">
+              <button 
+                v-for="e in emojiPalette"
+                :key="e"
+                type="button"
+                class="emoji-pick-btn"
+                :class="{ active: selectedFeature.emoji === e }"
+                @click="handlePropUpdate('emoji', e)"
+              >
+                {{ e }}
+              </button>
+            </div>
+            
+            <div class="form-group custom-emoji-input-group" style="margin-top: 8px;">
+              <label class="form-label-sub">Or Custom Emoji / Symbol</label>
+              <input 
+                type="text" 
+                class="form-input font-mono" 
+                maxlength="5"
+                placeholder="Paste emoji..."
+                :value="selectedFeature.emoji"
+                @input="handlePropUpdate('emoji', $event.target.value)"
+              />
+            </div>
+          </div>
+
+          <!-- Emoji Size -->
+          <div class="form-group" v-if="selectedFeature.type === 'emoji'">
+            <div class="form-label-row">
+              <label class="form-label">Emoji Size</label>
+              <span class="form-value font-mono">{{ selectedFeature.emojiSize }}px</span>
+            </div>
+            <input 
+              type="range" 
+              class="form-range" 
+              min="16" 
+              max="80" 
+              step="2"
+              :value="selectedFeature.emojiSize"
+              @input="handlePropUpdate('emojiSize', parseInt($event.target.value))"
             />
           </div>
 
@@ -196,7 +207,7 @@
             </div>
             <div class="geom-row">
               <span class="geom-label">Position:</span>
-              <span class="geom-val text-truncate" v-if="selectedFeature.type === 'marker' || selectedFeature.type === 'annotation' || selectedFeature.type === 'circle'">
+              <span class="geom-val text-truncate" v-if="isPointType(selectedFeature.type)">
                 {{ selectedFeature.coordinates[0].toFixed(5) }}, {{ selectedFeature.coordinates[1].toFixed(5) }}
               </span>
               <span class="geom-val text-truncate" v-else>
@@ -228,8 +239,8 @@
       <div class="panel-section list-section">
         <div class="list-section-header">
           <h3 class="section-title">Overlay Elements ({{ features.length }})</h3>
-          <button v-if="features.length > 0" class="clear-all-btn" @click="clearAll">
-            Clear All
+          <button v-if="features.length > 0" class="clear-all-btn" @click="handleClearAll">
+            {{ confirmingClear ? 'Confirm Delete?' : 'Clear All' }}
           </button>
         </div>
 
@@ -242,7 +253,8 @@
             @click="selectFeature(item.id)"
           >
             <div class="feature-meta">
-              <span class="shape-indicator" :class="item.type" :style="{ backgroundColor: item.color }"></span>
+              <span v-if="item.type === 'emoji'" class="emoji-indicator">{{ item.emoji }}</span>
+              <span v-else class="shape-indicator" :class="item.type" :style="{ backgroundColor: item.color }"></span>
               <span class="feature-name">{{ item.name }}</span>
             </div>
             
@@ -263,7 +275,7 @@
 
       <!-- Export Panel Action -->
       <div class="export-panel" v-if="features.length > 0">
-        <button class="export-btn neon-border" @click="exportKML">
+        <button class="export-btn neon-border" @click="downloadKML({ filename: exportFilename })">
           <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
           </svg>
@@ -277,190 +289,137 @@
       <div class="alert-pulse"></div>
       <span class="font-mono">PLACING {{ activeDrawingTool.toUpperCase() }}...</span>
     </div>
-
-    <!-- Bottom Bar: Status Display -->
-    <div class="status-bar glass">
-      <div class="status-item">
-        <span class="label">CENTER</span>
-        <span class="value font-mono">{{ formatCoords(center) }}</span>
-      </div>
-      <div class="status-item divider-v"></div>
-      <div class="status-item">
-        <span class="label">ZOOM</span>
-        <span class="value font-mono">{{ zoomLevel.toFixed(1) }}</span>
-      </div>
-      <div class="status-item divider-v"></div>
-      <div class="status-item">
-        <span class="label">MOUSE</span>
-        <span class="value font-mono">{{ formatCoords(pointerCoords) }}</span>
-      </div>
-    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch } from 'vue';
-import { OverlayManager } from '../utils/OverlayManager';
+/**
+ * MapOverlay — Thin Vue UI shell for the OverlayManager library.
+ *
+ * All drawing logic, feature management, and export are delegated to the
+ * composable (useOverlayManager) which wraps the framework-agnostic core.
+ *
+ * This component is purely a view layer: it renders controls, wires user
+ * interactions to composable actions, and displays reactive state.
+ */
+
+import { ref, computed, toRef } from 'vue';
+import { useOverlayManager } from '../composables/useOverlayManager.js';
+import { TOOL_TYPES, DEFAULT_EMOJI_PALETTE } from '../lib/defaults.js';
+
+// ── Props ────────────────────────────────────────────────────────
 
 const props = defineProps({
+  /** The OpenLayers Map instance to attach to. */
   map: {
     type: Object,
     required: true,
-  }
+  },
+  /** Which drawing tools to expose in the toolbar. */
+  tools: {
+    type: Array,
+    default: () => TOOL_TYPES,
+    validator: (v) => v.every((t) => TOOL_TYPES.includes(t)),
+  },
+  /** Emoji palette shown in the emoji property editor. */
+  emojiPalette: {
+    type: Array,
+    default: () => DEFAULT_EMOJI_PALETTE,
+  },
+  /** Filename used for KML export download. */
+  exportFilename: {
+    type: String,
+    default: 'overlay.kml',
+  },
+  /** Options forwarded to the OverlayManager constructor. */
+  managerOptions: {
+    type: Object,
+    default: () => ({}),
+  },
 });
 
-let overlayManager = null;
+// ── Tool definitions (SVG icons + labels) ─────────────────────────
 
-// Local states for coordinates, zoom, features list, selection and active drawing tool
-const center = ref([2.3522, 48.8566]);
-const zoomLevel = ref(5);
-const pointerCoords = ref([2.3522, 48.8566]);
-
-const features = ref([]);
-const selectedFeature = ref(null);
-const activeDrawingTool = ref(null);
-
-const initializeOverlayTool = (olMap) => {
-  if (!olMap) return;
-
-  // Run teardown of any previous maps
-  cleanup();
-
-  // Create Standalone Manager
-  overlayManager = new OverlayManager(olMap);
-
-  // Subscribe to OverlayManager Events
-  overlayManager.on('feature-selected', (feature) => {
-    selectedFeature.value = feature;
-  });
-
-  overlayManager.on('list-updated', (list) => {
-    features.value = list;
-    if (selectedFeature.value) {
-      const updated = list.find(f => f.id === selectedFeature.value.id);
-      selectedFeature.value = updated || null;
-    }
-  });
-
-  overlayManager.on('draw-stopped', () => {
-    activeDrawingTool.value = null;
-  });
-
-  // Subscribe to map center/zoom and pointer coordinate changes from the manager
-  overlayManager.on('map-moved', (data) => {
-    center.value = data.center;
-    zoomLevel.value = data.zoom;
-  });
-
-  overlayManager.on('pointer-moved', (coordinate) => {
-    pointerCoords.value = coordinate;
-  });
+const TOOL_ICONS = {
+  polygon: '<path stroke-linecap="round" stroke-linejoin="round" d="M4 10l5-6h6l5 6v6l-5 6H9l-5-6V10z" />',
+  circle: '<circle cx="12" cy="12" r="9" />',
+  marker: '<path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />',
+  annotation: '<path stroke-linecap="round" stroke-linejoin="round" d="M7 8h10M7 12h10M7 16h10" />',
+  emoji: '<path stroke-linecap="round" stroke-linejoin="round" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />',
 };
 
-const cleanup = () => {
-  if (overlayManager) {
-    overlayManager.destroy();
-    overlayManager = null;
+const TOOL_LABELS = {
+  polygon: 'Polygon Zone',
+  circle: 'Circle Zone',
+  marker: 'Geo Marker',
+  annotation: 'Text Label',
+  emoji: 'Emoji Marker',
+};
+
+const availableTools = computed(() =>
+  props.tools.map((type) => ({
+    type,
+    label: TOOL_LABELS[type] || type,
+    icon: TOOL_ICONS[type] || '',
+  })),
+);
+
+// ── Composable ──────────────────────────────────────────────────
+
+const mapRef = toRef(props, 'map');
+
+const {
+  features,
+  selectedFeature,
+  activeDrawingTool,
+  startDraw,
+  stopDrawing,
+  selectFeature,
+  updateProp,
+  deleteFeature,
+  clearAll,
+  downloadKML,
+} = useOverlayManager(mapRef, props.managerOptions);
+
+// ── Local UI state ──────────────────────────────────────────────
+
+const confirmingClear = ref(false);
+let clearConfirmTimer = null;
+
+// ── Actions ─────────────────────────────────────────────────────
+
+/**
+ * Proxy prop updates to the composable, guarding against missing selection.
+ */
+function handlePropUpdate(property, value) {
+  if (selectedFeature.value) {
+    updateProp(selectedFeature.value.id, property, value);
   }
-  features.value = [];
-  selectedFeature.value = null;
-  activeDrawingTool.value = null;
-};
+}
 
-// Listen to prop changes
-watch(() => props.map, (newMap) => {
-  if (newMap) {
-    initializeOverlayTool(newMap);
+/**
+ * Two-click "Clear All" — replaces browser confirm() with inline confirmation.
+ * First click shows "Confirm Delete?", second click within 3s actually clears.
+ */
+function handleClearAll() {
+  if (confirmingClear.value) {
+    clearAll();
+    confirmingClear.value = false;
+    if (clearConfirmTimer) clearTimeout(clearConfirmTimer);
+  } else {
+    confirmingClear.value = true;
+    clearConfirmTimer = setTimeout(() => {
+      confirmingClear.value = false;
+    }, 3000);
   }
-}, { immediate: true });
+}
 
-onUnmounted(() => {
-  cleanup();
-});
-
-// Operations calling directly into OverlayManager
-const startDraw = (tool) => {
-  if (!overlayManager) return;
-  activeDrawingTool.value = tool;
-
-  // Defaults for styling
-  let defaults = {
-    color: '#a855f7',
-    strokeColor: '#000',
-    strokeWidth: 2,
-    opacity: 0.3
-  };
-  
-  if (tool === 'marker') {
-    defaults.color = '#ef4444';
-  } else if (tool === 'annotation') {
-    defaults.color = '#3b82f6';
-    defaults.textSize = 16;
-    defaults.text = 'Mission Zone Label';
-  } else if (tool === 'circle') {
-    defaults.color = '#10b981';
-  }
-
-  overlayManager.startDrawing(tool, defaults);
-};
-
-const stopDrawing = () => {
-  if (overlayManager) {
-    overlayManager.stopDrawing();
-  }
-  activeDrawingTool.value = null;
-};
-
-const selectFeature = (id) => {
-  if (overlayManager) {
-    overlayManager.selectFeatureById(id);
-  }
-};
-
-const updateProp = (property, value) => {
-  if (overlayManager && selectedFeature.value) {
-    overlayManager.updateFeatureProperty(selectedFeature.value.id, property, value);
-  }
-};
-
-const deleteFeature = (id) => {
-  if (overlayManager) {
-    overlayManager.deleteFeatureById(id);
-  }
-};
-
-const clearAll = () => {
-  if (confirm('Are you sure you want to clear all drawn overlays? This action cannot be undone.')) {
-    if (overlayManager) {
-      overlayManager.clearAll();
-    }
-  }
-};
-
-const exportKML = () => {
-  if (!overlayManager) return;
-  const kmlContent = overlayManager.exportToKML();
-  
-  const blob = new Blob([kmlContent], { type: 'application/vnd.google-earth.kml+xml;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = 'mission_overlay.kml';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-};
-
-const formatCoords = (coords) => {
-  if (!coords || coords.length < 2) return '0.00000, 0.00000';
-  const lon = coords[0];
-  const lat = coords[1];
-  
-  const latStr = lat >= 0 ? `${lat.toFixed(5)}°N` : `${Math.abs(lat).toFixed(5)}°S`;
-  const lonStr = lon >= 0 ? `${lon.toFixed(5)}°E` : `${Math.abs(lon).toFixed(5)}°W`;
-  return `${latStr}, ${lonStr}`;
-};
+/**
+ * Check if a feature type uses a Point geometry (single coordinate).
+ */
+function isPointType(type) {
+  return type === 'marker' || type === 'annotation' || type === 'circle' || type === 'emoji';
+}
 </script>
 
 <style scoped>
@@ -477,32 +436,46 @@ const formatCoords = (coords) => {
   width: 100%;
   height: 100%;
   z-index: 2;
-  pointer-events: none; /* Let clicks pass through to map */
+  pointer-events: none;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: flex-start;
   padding: 24px;
   box-sizing: border-box;
+
+  /* Self-contained light-mode theme — scoped to this component */
+  --bg-card: rgba(255, 255, 255, 0.88);
+  --border-light: rgba(0, 0, 0, 0.08);
+  --border-focus: rgba(168, 85, 247, 0.6);
+  --text-primary: #1f2937;
+  --text-secondary: #4b5563;
+  --text-muted: #9ca3af;
+  --accent: #a855f7;
+  --accent-glow: rgba(168, 85, 247, 0.15);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+  --backdrop-blur: blur(12px);
+  --font-sans: 'Outfit', system-ui, sans-serif;
+  --font-mono: 'Space Mono', ui-monospace, monospace;
 }
 
-/* Glassmorphism utility */
+/* Glassmorphism */
 .glass {
   background: var(--bg-card);
   backdrop-filter: var(--backdrop-blur);
   border: 1px solid var(--border-light);
   box-shadow: var(--shadow-lg);
-  pointer-events: auto; /* Re-enable pointer events for controls */
+  pointer-events: auto;
 }
 
-/* Neon Glow styling */
+/* Neon Glow */
 .neon-border {
   border-color: var(--border-focus);
-  box-shadow: 0 0 15px var(--accent-glow), inset 0 0 10px rgba(168, 85, 247, 0.1);
+  box-shadow: 0 0 15px var(--accent-glow), inset 0 0 10px rgba(168, 85, 247, 0.05);
 }
 
 /* Side Control Panel */
 .control-panel {
-  width: 320px;
+  width: 330px;
   border-radius: 16px;
   padding: 20px;
   display: flex;
@@ -536,18 +509,10 @@ const formatCoords = (coords) => {
 
 .brand-title {
   font-weight: 700;
-  font-size: 14px;
+  font-size: 16px;
   letter-spacing: 1.5px;
   color: var(--text-primary);
-}
-
-.brand-version {
-  font-size: 10px;
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-  background: rgba(255, 255, 255, 0.05);
-  padding: 2px 6px;
-  border-radius: 4px;
+  font-family: var(--font-sans);
 }
 
 .divider {
@@ -569,12 +534,13 @@ const formatCoords = (coords) => {
 }
 
 .section-title {
-  font-size: 10px;
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 1.5px;
   color: var(--text-secondary);
   font-weight: 600;
   margin: 0;
+  font-family: var(--font-sans);
 }
 
 /* Tools layout */
@@ -585,12 +551,12 @@ const formatCoords = (coords) => {
 }
 
 .tool-btn {
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(0, 0, 0, 0.02);
   border: 1px solid var(--border-light);
   color: var(--text-secondary);
   padding: 12px 10px;
   border-radius: 10px;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 500;
   display: flex;
   flex-direction: column;
@@ -603,9 +569,9 @@ const formatCoords = (coords) => {
 }
 
 .tool-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.05);
   color: var(--text-primary);
-  border-color: rgba(255, 255, 255, 0.15);
+  border-color: rgba(0, 0, 0, 0.15);
   transform: translateY(-1px);
 }
 
@@ -613,11 +579,8 @@ const formatCoords = (coords) => {
   transform: translateY(1px);
 }
 
-.tool-btn.active {
-  background: var(--accent);
-  color: #fff;
-  border-color: var(--accent);
-  box-shadow: 0 0 12px var(--accent-glow);
+.emoji-tool-btn {
+  grid-column: span 2;
 }
 
 /* Active drawing state banner */
@@ -625,7 +588,7 @@ const formatCoords = (coords) => {
   display: flex;
   align-items: center;
   gap: 12px;
-  background: rgba(168, 85, 247, 0.05);
+  background: rgba(168, 85, 247, 0.08);
   border: 1px solid var(--border-focus);
   padding: 10px 14px;
   border-radius: 10px;
@@ -633,46 +596,47 @@ const formatCoords = (coords) => {
 
 .alert-content {
   display: flex;
-  flex-direction: column;
   flex-grow: 1;
+  flex-direction: column;
 }
 
 .alert-label {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--text-primary);
   letter-spacing: 0.5px;
+  font-family: var(--font-sans);
 }
 
 .alert-sub {
-  font-size: 9px;
-  color: var(--text-muted);
+  font-size: 11px;
+  color: var(--text-secondary);
 }
 
 .cancel-draw-btn {
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  color: #f87171;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #ef4444;
   padding: 4px 10px;
   border-radius: 6px;
-  font-size: 10px;
+  font-size: 12px;
   cursor: pointer;
   transition: all 0.2s;
   font-weight: 500;
 }
 
 .cancel-draw-btn:hover {
-  background: rgba(239, 68, 68, 0.2);
-  border-color: rgba(239, 68, 68, 0.5);
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.4);
 }
 
-/* Property Editor Form */
+/* Property Editor */
 .property-editor-section {
   animation: slideIn 0.2s ease;
 }
 
 .type-badge {
-  font-size: 9px;
+  font-size: 11px;
   font-family: var(--font-mono);
   padding: 2px 8px;
   border-radius: 20px;
@@ -681,23 +645,28 @@ const formatCoords = (coords) => {
 }
 
 .type-badge.polygon {
-  background: rgba(168, 85, 247, 0.15);
-  color: #c084fc;
+  background: rgba(168, 85, 247, 0.12);
+  color: #8b5cf6;
 }
 
 .type-badge.circle {
-  background: rgba(16, 185, 129, 0.15);
-  color: #34d399;
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
 }
 
 .type-badge.marker {
-  background: rgba(239, 68, 68, 0.15);
-  color: #f87171;
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
 }
 
 .type-badge.annotation {
-  background: rgba(59, 130, 246, 0.15);
-  color: #60a5fa;
+  background: rgba(59, 130, 246, 0.12);
+  color: #2563eb;
+}
+
+.type-badge.emoji {
+  background: rgba(245, 158, 11, 0.15);
+  color: #d97706;
 }
 
 .property-form {
@@ -713,7 +682,7 @@ const formatCoords = (coords) => {
 }
 
 .form-label {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--text-secondary);
   font-weight: 500;
 }
@@ -725,17 +694,17 @@ const formatCoords = (coords) => {
 }
 
 .form-value {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--text-primary);
   font-weight: 600;
 }
 
 .form-input {
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.04);
   border: 1px solid var(--border-light);
   border-radius: 8px;
   padding: 8px 12px;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--text-primary);
   outline: none;
   transition: border 0.2s;
@@ -747,11 +716,11 @@ const formatCoords = (coords) => {
 }
 
 .form-textarea {
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.04);
   border: 1px solid var(--border-light);
   border-radius: 8px;
   padding: 8px 12px;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--text-primary);
   outline: none;
   resize: vertical;
@@ -767,7 +736,7 @@ const formatCoords = (coords) => {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.04);
   border: 1px solid var(--border-light);
   border-radius: 8px;
   padding: 6px 12px;
@@ -784,7 +753,7 @@ const formatCoords = (coords) => {
 }
 
 .color-hex {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--text-primary);
   letter-spacing: 0.5px;
 }
@@ -794,7 +763,7 @@ const formatCoords = (coords) => {
   width: 100%;
   height: 4px;
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.08);
   outline: none;
 }
 
@@ -815,11 +784,11 @@ const formatCoords = (coords) => {
 }
 
 .geom-details {
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(0, 0, 0, 0.02);
   border: 1px solid var(--border-light);
   border-radius: 8px;
   padding: 8px 10px;
-  font-size: 10px;
+  font-size: 12px;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -830,7 +799,7 @@ const formatCoords = (coords) => {
   font-weight: 600;
   text-transform: uppercase;
   margin-bottom: 2px;
-  font-size: 8px;
+  font-size: 10px;
   letter-spacing: 0.5px;
 }
 
@@ -846,6 +815,7 @@ const formatCoords = (coords) => {
 .geom-val {
   color: var(--text-primary);
   max-width: 180px;
+  font-size: 13px;
 }
 
 .text-truncate {
@@ -855,12 +825,12 @@ const formatCoords = (coords) => {
 }
 
 .delete-element-btn {
-  background: rgba(239, 68, 68, 0.08);
+  background: rgba(239, 68, 68, 0.05);
   border: 1px solid rgba(239, 68, 68, 0.2);
-  color: #f87171;
+  color: #ef4444;
   padding: 10px;
   border-radius: 8px;
-  font-size: 12px;
+  font-size: 14px;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -872,7 +842,7 @@ const formatCoords = (coords) => {
 }
 
 .delete-element-btn:hover {
-  background: rgba(239, 68, 68, 0.15);
+  background: rgba(239, 68, 68, 0.1);
   border-color: rgba(239, 68, 68, 0.4);
 }
 
@@ -882,7 +852,7 @@ const formatCoords = (coords) => {
   align-items: center;
   text-align: center;
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 13px;
   padding: 16px;
   gap: 8px;
 }
@@ -903,8 +873,8 @@ const formatCoords = (coords) => {
 .clear-all-btn {
   background: transparent;
   border: none;
-  color: #f87171;
-  font-size: 9px;
+  color: #ef4444;
+  font-size: 11px;
   text-transform: uppercase;
   cursor: pointer;
   font-weight: 600;
@@ -927,7 +897,7 @@ const formatCoords = (coords) => {
 }
 
 .feature-item {
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(0, 0, 0, 0.02);
   border: 1px solid var(--border-light);
   border-radius: 8px;
   padding: 8px 12px;
@@ -939,14 +909,14 @@ const formatCoords = (coords) => {
 }
 
 .feature-item:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(0, 0, 0, 0.04);
   border-color: var(--border-focus);
 }
 
 .feature-item.active {
   border-color: var(--border-focus);
-  background: rgba(168, 85, 247, 0.05);
-  box-shadow: 0 0 8px rgba(168, 85, 247, 0.1);
+  background: rgba(168, 85, 247, 0.08);
+  box-shadow: 0 0 8px rgba(168, 85, 247, 0.15);
 }
 
 .feature-meta {
@@ -961,15 +931,68 @@ const formatCoords = (coords) => {
   height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(0, 0, 0, 0.15);
 }
 
 .shape-indicator.polygon {
   border-radius: 2px;
 }
 
+.emoji-indicator {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.emoji-selector-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.emoji-pick-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  font-size: 20px;
+  padding: 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.emoji-pick-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  transform: scale(1.15);
+}
+
+.emoji-pick-btn.active {
+  background: rgba(168, 85, 247, 0.1);
+  border-color: var(--border-focus);
+  box-shadow: 0 0 8px rgba(168, 85, 247, 0.15);
+  transform: scale(1.1);
+}
+
+.form-label-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 .feature-name {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--text-primary);
   font-weight: 500;
   overflow: hidden;
@@ -1000,16 +1023,16 @@ const formatCoords = (coords) => {
 }
 
 .action-btn.delete:hover {
-  color: #f87171;
-  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.08);
 }
 
 .list-empty {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--text-muted);
   text-align: center;
   padding: 12px;
-  background: rgba(255, 255, 255, 0.01);
+  background: rgba(0, 0, 0, 0.01);
   border: 1px dashed var(--border-light);
   border-radius: 8px;
 }
@@ -1022,13 +1045,13 @@ const formatCoords = (coords) => {
 
 .export-btn {
   width: 100%;
-  background: rgba(168, 85, 247, 0.1);
+  background: rgba(168, 85, 247, 0.08);
   border: 1px solid var(--border-focus);
   color: var(--text-primary);
   padding: 12px;
   border-radius: 10px;
   font-weight: 600;
-  font-size: 12px;
+  font-size: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1037,16 +1060,18 @@ const formatCoords = (coords) => {
   transition: all 0.2s ease;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  font-family: var(--font-sans);
 }
 
 .export-btn:hover {
   background: var(--accent);
   border-color: var(--accent);
+  color: #fff;
   box-shadow: 0 0 15px var(--accent-glow);
   transform: translateY(-1px);
 }
 
-/* Alert dialog box (floating middle top) */
+/* Alert dialog box (floating top center) */
 .alert-box {
   position: absolute;
   top: 24px;
@@ -1057,9 +1082,10 @@ const formatCoords = (coords) => {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--text-primary);
   font-weight: 600;
+  font-family: var(--font-mono);
 }
 
 .alert-pulse {
@@ -1070,45 +1096,8 @@ const formatCoords = (coords) => {
   animation: pulse 1.5s infinite;
 }
 
-/* Bottom Bar */
-.status-bar {
-  width: fit-content;
-  border-radius: 12px;
-  padding: 8px 16px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  align-self: flex-start;
-  margin-top: auto;
-}
-
-.status-item {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-
-.status-item .label {
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  color: var(--text-muted);
-}
-
-.status-item .value {
-  font-size: 11px;
-  color: var(--text-primary);
-  font-weight: 500;
-}
-
 .font-mono {
   font-family: var(--font-mono);
-}
-
-.divider-v {
-  width: 1px;
-  height: 14px;
-  background: var(--border-light);
 }
 
 /* Animations */
