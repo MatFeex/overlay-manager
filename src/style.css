@@ -1,0 +1,108 @@
+@import "ol/ol.css";
+
+:root {
+  --font-sans: 'Outfit', sans-serif;
+  --font-mono: 'Space Mono', ui-monospace, monospace;
+  
+  /* Color Palette - Premium Void Dark Mode */
+  --bg-dark: #090a10;
+  --bg-card: rgba(18, 20, 32, 0.7);
+  --border-light: rgba(255, 255, 255, 0.08);
+  --border-focus: rgba(168, 85, 247, 0.5); /* Violet */
+  --accent: #a855f7; /* Violet */
+  --accent-glow: rgba(168, 85, 247, 0.3);
+  --text-primary: #f3f4f6;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7280;
+  
+  --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
+  --backdrop-blur: blur(12px);
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--bg-dark);
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#app {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Custom styles for OpenLayers controls to match dark mode */
+.ol-zoom {
+  top: unset !important;
+  left: unset !important;
+  bottom: 24px !important;
+  right: 24px !important;
+  background-color: var(--bg-card) !important;
+  border: 1px solid var(--border-light) !important;
+  backdrop-filter: var(--backdrop-blur) !important;
+  border-radius: 12px !important;
+  padding: 6px !important;
+  box-shadow: var(--shadow-lg) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+  z-index: 10 !important;
+}
+
+.ol-zoom button {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  color: var(--text-primary) !important;
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+  font-size: 16px !important;
+  width: 32px !important;
+  height: 32px !important;
+  border: 1px solid var(--border-light) !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  outline: none !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.ol-zoom button:hover {
+  background-color: var(--accent) !important;
+  color: #fff !important;
+  box-shadow: 0 0 10px var(--accent-glow) !important;
+  transform: translateY(-1px);
+}
+
+.ol-zoom button:active {
+  transform: translateY(1px);
+}
+
+.ol-attribution {
+  display: none !important; /* Hide standard attribution or keep it minimal for cleaner full screen */
+}
+
+/* Scrollbar customization */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
