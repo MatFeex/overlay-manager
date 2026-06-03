@@ -27,12 +27,10 @@ import VectorSource from 'ol/source/Vector';
 import Feature from 'ol/Feature';
 import Polygon from 'ol/geom/Polygon';
 import { Draw, Modify, Translate, Select, Snap } from 'ol/interaction';
+import Transform from 'ol-ext/interaction/Transform';
 import { Style, Fill, Stroke, Circle as CircleStyle, Text } from 'ol/style';
 import { toLonLat } from 'ol/proj';
 import { unByKey } from 'ol/Observable';
-
-// Module-level image cache for canvas overlays
-const imageCache = new Map();
 
 import { EventEmitter } from './EventEmitter.js';
 import { hexToRgba, getCirclePolygonCoords } from './helpers.js';
@@ -43,6 +41,9 @@ import {
   BASE_FEATURE_DEFAULTS,
   DEFAULT_EXPORT_OPTIONS,
 } from './defaults.js';
+
+// Module-level image cache for canvas overlays
+const imageCache = new Map();
 
 export class OverlayManager extends EventEmitter {
   /**
@@ -85,6 +86,7 @@ export class OverlayManager extends EventEmitter {
     this._translateInteraction = null;
     this._selectInteraction = null;
     this._snapInteraction = null;
+    this._transformInteraction = null;
 
     // State
     this._selectedFeature = null;
@@ -111,9 +113,11 @@ export class OverlayManager extends EventEmitter {
 
     this._clearDrawInteraction();
 
-    // Disable selection/translation during drawing
+    // Disable selection/translation/transform during drawing
     this._selectInteraction.setActive(false);
     this._translateInteraction.setActive(false);
+    if (this._modifyInteraction) this._modifyInteraction.setActive(false);
+    if (this._transformInteraction) this._transformInteraction.setActive(false);
 
     this._drawInteraction = new Draw({
       source: this._vectorSource,
@@ -164,7 +168,9 @@ export class OverlayManager extends EventEmitter {
   stopDrawing() {
     this._clearDrawInteraction();
     this._selectInteraction.setActive(true);
-    this._translateInteraction.setActive(true);
+    if (this._selectedFeature) {
+      this._setSelectedFeature(this._selectedFeature);
+    }
     this.emit('draw:stop');
   }
 
@@ -413,6 +419,7 @@ export class OverlayManager extends EventEmitter {
       this._modifyInteraction,
       this._translateInteraction,
       this._snapInteraction,
+      this._transformInteraction,
     ];
     for (const interaction of interactions) {
       if (interaction) this._map.removeInteraction(interaction);
@@ -492,6 +499,32 @@ export class OverlayManager extends EventEmitter {
       source: this._vectorSource,
     });
     this._map.addInteraction(this._snapInteraction);
+
+    // 5. Transform (scale, stretch, rotate, translate) from ol-ext
+    this._transformInteraction = new Transform({
+      enableRotatedTransform: true,
+      addSign: true,
+      features: this._selectInteraction.getFeatures(),
+      translate: true,
+      stretch: true,
+      scale: true,
+      rotate: true,
+      keepAspectRatio: false,
+    });
+    this._map.addInteraction(this._transformInteraction);
+
+    const transformKey = this._transformInteraction.on(['translateend', 'scaleend', 'rotateend'], () => {
+      this._syncFeatures();
+      if (this._selectedFeature) {
+        this.emit('feature:update', this._extractProps(this._selectedFeature));
+      }
+    });
+    this._olListenerKeys.push(transformKey);
+
+    // Initially deactivate edit interactions until a selection occurs
+    this._transformInteraction.setActive(false);
+    this._modifyInteraction.setActive(false);
+    this._translateInteraction.setActive(false);
   }
 
   /**
@@ -532,10 +565,40 @@ export class OverlayManager extends EventEmitter {
 
     this._selectedFeature = feature;
 
+    // Toggle interactions based on selection and feature type
     if (feature) {
       feature.set('_isSelected', true);
+      const type = feature.get('type');
+
+      if (type === 'polygon') {
+        // For Polygons: Transform (scale/rotate/translate) AND Modify (individual vertices) are active
+        if (this._transformInteraction) this._transformInteraction.setActive(true);
+        if (this._modifyInteraction) this._modifyInteraction.setActive(true);
+        if (this._translateInteraction) this._translateInteraction.setActive(false);
+      } else if (type === 'image') {
+        // For Images: Keep only Transform active (so the box remains a perfect rectangle for GroundOverlay bounds)
+        if (this._transformInteraction) this._transformInteraction.setActive(true);
+        if (this._modifyInteraction) this._modifyInteraction.setActive(false);
+        if (this._translateInteraction) this._translateInteraction.setActive(false);
+      } else if (type === 'circle') {
+        // Modify (for radius resizing) and Translate (for moving) active, Transform inactive
+        if (this._transformInteraction) this._transformInteraction.setActive(false);
+        if (this._modifyInteraction) this._modifyInteraction.setActive(true);
+        if (this._translateInteraction) this._translateInteraction.setActive(true);
+      } else {
+        // Point types (marker, annotation, emoji): Translate active, Transform/Modify inactive
+        if (this._transformInteraction) this._transformInteraction.setActive(false);
+        if (this._modifyInteraction) this._modifyInteraction.setActive(false);
+        if (this._translateInteraction) this._translateInteraction.setActive(true);
+      }
+
       this.emit('feature:select', this._extractProps(feature));
     } else {
+      // Nothing selected: deactivate all
+      if (this._transformInteraction) this._transformInteraction.setActive(false);
+      if (this._modifyInteraction) this._modifyInteraction.setActive(false);
+      if (this._translateInteraction) this._translateInteraction.setActive(false);
+
       this.emit('feature:select', null);
     }
 
@@ -752,20 +815,31 @@ export class OverlayManager extends EventEmitter {
                 const ctx = state.context;
                 // Coordinates is [[ [x1, y1], [x2, y2], [x3, y3], [x4, y4] ]]
                 const ring = coordinates[0];
-                if (!ring || ring.length < 3) return;
+                if (!ring || ring.length < 4) return;
 
-                const xs = ring.map((c) => c[0]);
-                const ys = ring.map((c) => c[1]);
-                const minX = Math.min(...xs);
-                const maxX = Math.max(...xs);
-                const minY = Math.min(...ys);
-                const maxY = Math.max(...ys);
-                const width = maxX - minX;
-                const height = maxY - minY;
+                const p1 = ring[0];
+                const p2 = ring[1];
+                const p3 = ring[2];
+                if (!p1 || !p2 || !p3) return;
+
+                const centerX = (p1[0] + p3[0]) / 2;
+                const centerY = (p1[1] + p3[1]) / 2;
+
+                const dx = p2[0] - p1[0];
+                const dy = p2[1] - p1[1];
+                const width = Math.sqrt(dx * dx + dy * dy);
+
+                const hx = p3[0] - p2[0];
+                const hy = p3[1] - p2[1];
+                const height = Math.sqrt(hx * hx + hy * hy);
+
+                const angle = Math.atan2(dy, dx);
 
                 ctx.save();
+                ctx.translate(centerX, centerY);
+                ctx.rotate(angle);
                 ctx.globalAlpha = opacity;
-                ctx.drawImage(img, minX, minY, width, height);
+                ctx.drawImage(img, -width / 2, -height / 2, width, height);
                 ctx.restore();
               },
             }));

@@ -107,6 +107,18 @@ export class KmlExporter {
     const south = Math.min(...lats);
     const north = Math.max(...lats);
 
+    // Calculate rotation angle of bottom edge (p1 -> p2)
+    const p1 = coordinates[0];
+    const p2 = coordinates[1];
+    let rotation = 0;
+    if (p1 && p2) {
+      const midLat = (p1[1] + p2[1]) / 2;
+      const radLat = (midLat * Math.PI) / 180;
+      const dx = (p2[0] - p1[0]) * Math.cos(radLat);
+      const dy = p2[1] - p1[1];
+      rotation = (Math.atan2(dy, dx) * 180) / Math.PI;
+    }
+
     const lines = [];
     lines.push('    <GroundOverlay>');
     lines.push(`      <name>${escapeXml(name || 'Image Overlay')}</name>`);
@@ -128,7 +140,7 @@ export class KmlExporter {
       `        <south>${south.toFixed(6)}</south>`,
       `        <east>${east.toFixed(6)}</east>`,
       `        <west>${west.toFixed(6)}</west>`,
-      '        <rotation>0</rotation>',
+      `        <rotation>${rotation.toFixed(2)}</rotation>`,
       '      </LatLonBox>',
       '    </GroundOverlay>',
     );
