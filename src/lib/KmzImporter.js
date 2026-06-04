@@ -370,4 +370,24 @@ export class KmzImporter {
 
     return featuresList;
   }
+
+  /**
+   * Import a KMZ/KML file directly into an OverlayManager instance.
+   * This parses the file, populates the map overlay layer with corresponding
+   * OpenLayers features, and enables their edition from the overlay tools panel.
+   *
+   * @param {File|Blob} fileOrBlob - KMZ/KML file blob
+   * @param {object} overlayManager - OverlayManager instance
+   * @param {object} [options] - Options passed to importKMZ
+   * @returns {Promise<object[]>} Resolves to the array of imported feature properties
+   */
+  static async importToManager(fileOrBlob, overlayManager, options = {}) {
+    if (!overlayManager) {
+      throw new Error('[KmzImporter] An OverlayManager instance is required to import features.');
+    }
+    if (typeof overlayManager.importKMZ !== 'function') {
+      throw new Error('[KmzImporter] The provided object is not a valid OverlayManager instance.');
+    }
+    return await overlayManager.importKMZ(fileOrBlob, options);
+  }
 }

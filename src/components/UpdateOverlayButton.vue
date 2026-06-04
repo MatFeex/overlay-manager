@@ -97,14 +97,10 @@ async function handleFileChange(event) {
 
     // 2. If overlayManager is provided, import directly into OpenLayers map
     if (props.overlayManager) {
-      if (typeof props.overlayManager.importKMZ === 'function') {
-        const imported = await props.overlayManager.importKMZ(file, {
-          clearExisting: props.clearExisting,
-        });
-        emit('success', imported);
-      } else {
-        throw new Error('Provided overlayManager is missing importKMZ method.');
-      }
+      const imported = await KmzImporter.importToManager(file, props.overlayManager, {
+        clearExisting: props.clearExisting,
+      });
+      emit('success', imported);
     } else {
       emit('success', features);
     }
