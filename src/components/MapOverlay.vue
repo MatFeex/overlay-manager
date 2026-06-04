@@ -376,6 +376,11 @@ const props = defineProps({
     type: Object,
     default: () => ({}),
   },
+  /** Pre-instantiated OverlayManager instance to hook into. */
+  overlayManager: {
+    type: Object,
+    default: null,
+  },
 });
 
 // ── Tool definitions (SVG icons + labels) ─────────────────────────
@@ -424,7 +429,10 @@ const {
   downloadKML,
   downloadKMZ,
   addImageOverlay,
-} = useOverlayManager(mapRef, props.managerOptions);
+} = useOverlayManager(mapRef, {
+  ...props.managerOptions,
+  overlayManager: props.overlayManager,
+});
 
 const imageInput = ref(null);
 

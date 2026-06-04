@@ -29,13 +29,25 @@ export function useOverlayManager(mapRef, options = {}) {
   const selectedFeature = ref(null);
   const activeDrawingTool = ref(null);
 
+  const isInternalManager = ref(false);
+
   // ── Internal lifecycle ──────────────────────────────────────
 
   function init(map) {
     if (!map) return;
     cleanup();
 
-    const instance = new OverlayManager(map, options);
+    let instance;
+    if (options.overlayManager) {
+      instance = options.overlayManager;
+      isInternalManager.value = false;
+    } else {
+      instance = new OverlayManager(map, options);
+      isInternalManager.value = true;
+    }
+
+    // Populate initial features from manager
+    features.value = instance.getFeatures();
 
     // Wire events → reactive refs
     instance.on('feature:select', (props) => {
@@ -60,7 +72,9 @@ export function useOverlayManager(mapRef, options = {}) {
 
   function cleanup() {
     if (manager.value) {
-      manager.value.destroy();
+      if (isInternalManager.value) {
+        manager.value.destroy();
+      }
       manager.value = null;
     }
     features.value = [];
