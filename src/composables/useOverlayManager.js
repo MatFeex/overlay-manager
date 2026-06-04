@@ -161,6 +161,16 @@ export function useOverlayManager(mapRef, options = {}) {
     }
   }
 
+  /**
+   * Import features from a KMZ/KML file.
+   */
+  async function importKMZ(fileOrBlob, options = {}) {
+    if (manager.value) {
+      return await manager.value.importKMZ(fileOrBlob, options);
+    }
+    return [];
+  }
+
   return {
     // Core instance (escape hatch for advanced usage)
     manager,
@@ -180,5 +190,6 @@ export function useOverlayManager(mapRef, options = {}) {
     downloadKML,
     downloadKMZ,
     addImageOverlay,
+    importKMZ,
   };
 }

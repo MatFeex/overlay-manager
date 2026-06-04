@@ -15,6 +15,7 @@ export { OverlayManager } from './OverlayManager.js';
 // KML export
 export { KmlExporter } from './KmlExporter.js';
 export { KmzExporter } from './KmzExporter.js';
+export { KmzImporter } from './KmzImporter.js';
 
 // Event system (for extension/composition)
 export { EventEmitter } from './EventEmitter.js';

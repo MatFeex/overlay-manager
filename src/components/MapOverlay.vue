@@ -299,14 +299,18 @@
         </div>
       </div>
 
-      <!-- Export Panel Action -->
-      <div class="export-panel" v-if="features.length > 0">
-        <button class="export-btn neon-border" @click="handleExportKMZ">
-          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-          </svg>
-          Export KMZ Overlay
-        </button>
+      <!-- Actions Panel -->
+      <div class="actions-panel">
+        <UpdateOverlayButton :overlay-manager="manager" button-class="import-btn-styled" />
+        
+        <div class="export-panel" v-if="features.length > 0">
+          <button class="export-btn neon-border" @click="handleExportKMZ">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Export KMZ Overlay
+          </button>
+        </div>
       </div>
     </div>
 
@@ -341,6 +345,7 @@
 import { ref, computed, toRef } from 'vue';
 import { useOverlayManager } from '../composables/useOverlayManager.js';
 import { TOOL_TYPES, DEFAULT_EMOJI_PALETTE } from '../lib/defaults.js';
+import UpdateOverlayButton from './UpdateOverlayButton.vue';
 
 // ── Props ────────────────────────────────────────────────────────
 
@@ -406,6 +411,7 @@ const availableTools = computed(() =>
 const mapRef = toRef(props, 'map');
 
 const {
+  manager,
   features,
   selectedFeature,
   activeDrawingTool,
@@ -1227,5 +1233,39 @@ function getCenterOfCoords(coordinates) {
   50% {
     box-shadow: 0 0 8px rgba(168, 85, 247, 0.15);
   }
+}
+
+.actions-panel {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+:deep(.import-btn-styled) {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px dashed var(--border-focus);
+  color: var(--text-primary);
+  padding: 12px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-family: var(--font-sans);
+}
+
+:deep(.import-btn-styled:hover) {
+  background: rgba(168, 85, 247, 0.08);
+  border-style: solid;
+  border-color: var(--accent);
+  box-shadow: 0 0 12px var(--accent-glow);
 }
 </style>

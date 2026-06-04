@@ -26,15 +26,18 @@ import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
 import Feature from 'ol/Feature';
 import Polygon from 'ol/geom/Polygon';
+import Point from 'ol/geom/Point';
+import Circle from 'ol/geom/Circle';
 import { Draw, Modify, Translate, Select, Snap } from 'ol/interaction';
 import Transform from 'ol-ext/interaction/Transform';
 import { Style, Fill, Stroke, Circle as CircleStyle, Text } from 'ol/style';
-import { toLonLat } from 'ol/proj';
+import { toLonLat, fromLonLat } from 'ol/proj';
 import { unByKey } from 'ol/Observable';
 
 import { EventEmitter } from './EventEmitter.js';
 import { hexToRgba, getCirclePolygonCoords } from './helpers.js';
 import { KmlExporter } from './KmlExporter.js';
+import { KmzImporter } from './KmzImporter.js';
 import {
   TOOL_TO_OL_TYPE,
   DEFAULT_TOOL_STYLES,
@@ -402,6 +405,105 @@ export class OverlayManager extends EventEmitter {
     const opts = { ...this._exportOptions, ...options };
     const kml = this.exportToKML(opts);
     KmlExporter.download(kml, opts.filename);
+  }
+
+  /**
+   * Import features from a KMZ (or direct KML) file into the overlay.
+   *
+   * @param {File|Blob} fileOrBlob - KMZ or KML file blob
+   * @param {object} [options]
+   * @param {boolean} [options.clearExisting=true] - Clear current features before importing
+   * @returns {Promise<object[]>} Resolves to the array of imported feature properties
+   */
+  async importKMZ(fileOrBlob, options = {}) {
+    const opts = { clearExisting: true, ...options };
+    
+    // Parse KMZ / KML using the importer
+    const parsedFeatures = await KmzImporter.parse(fileOrBlob);
+
+    if (opts.clearExisting) {
+      this.clearAll();
+    }
+
+    const importedFeatures = [];
+
+    for (const item of parsedFeatures) {
+      const { type, coordinates } = item;
+      let geometry = null;
+
+      if (type === 'polygon') {
+        const coords3857 = coordinates.map((c) => fromLonLat(c));
+        geometry = new Polygon([coords3857]);
+      } else if (type === 'circle') {
+        const center3857 = fromLonLat(coordinates);
+        let radius = 100; // default fallback radius (meters)
+        if (item._circlePolygonCoords && item._circlePolygonCoords.length > 0) {
+          const firstPoint3857 = fromLonLat(item._circlePolygonCoords[0]);
+          const dx = center3857[0] - firstPoint3857[0];
+          const dy = center3857[1] - firstPoint3857[1];
+          radius = Math.sqrt(dx * dx + dy * dy);
+        }
+        geometry = new Circle(center3857, radius);
+      } else if (type === 'marker' || type === 'annotation' || type === 'emoji') {
+        const coords3857 = fromLonLat(coordinates);
+        geometry = new Point(coords3857);
+      } else if (type === 'image') {
+        const bl = fromLonLat(coordinates[0]);
+        const br = fromLonLat(coordinates[1]);
+        const tr = fromLonLat(coordinates[2]);
+        const tl = fromLonLat(coordinates[3]);
+        
+        geometry = new Polygon([[bl, br, tr, tl, bl]]);
+
+        if (item._rotation) {
+          const center = [(bl[0] + tr[0]) / 2, (bl[1] + tr[1]) / 2];
+          const angleRad = (item._rotation * Math.PI) / 180;
+          geometry.rotate(-angleRad, center);
+        }
+
+        const widthMeters = Math.sqrt((bl[0] - br[0]) ** 2 + (bl[1] - br[1]) ** 2);
+        const heightMeters = Math.sqrt((bl[0] - tl[0]) ** 2 + (bl[1] - tl[1]) ** 2);
+        
+        item.baseWidth = widthMeters / 2;
+        item.baseHeight = heightMeters / 2;
+      }
+
+      if (geometry) {
+        const id = this._generateId(type);
+        const feature = new Feature({ geometry });
+        feature.setId(id);
+
+        const featureProps = {
+          ...item,
+          id,
+        };
+
+        delete featureProps._circlePolygonCoords;
+        delete featureProps._rotation;
+
+        for (const [key, val] of Object.entries(featureProps)) {
+          feature.set(key, val);
+        }
+
+        this._vectorSource.addFeature(feature);
+        importedFeatures.push(featureProps);
+      }
+    }
+
+    this._syncFeatures();
+
+    // Select and pan to the first imported feature to focus user's attention
+    if (importedFeatures.length > 0) {
+      const firstFeature = this._vectorSource.getFeatureById(importedFeatures[0].id);
+      if (firstFeature) {
+        this._selectInteraction.getFeatures().clear();
+        this._selectInteraction.getFeatures().push(firstFeature);
+        this._setSelectedFeature(firstFeature);
+        this._panToFeature(firstFeature);
+      }
+    }
+
+    return importedFeatures;
   }
 
   // ── Public API: Lifecycle ──────────────────────────────────────
