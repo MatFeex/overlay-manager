@@ -373,12 +373,13 @@ export class KmzImporter {
 
   /**
    * Import a KMZ/KML file directly into an OverlayManager instance.
-   * This parses the file, populates the map overlay layer with corresponding
-   * OpenLayers features, and enables their edition from the overlay tools panel.
+   * This parses the file (accepting Files, Blobs, HTTP Response streams, or raw ReadableStreams),
+   * populates the map overlay layer with corresponding OpenLayers features, and adjusts
+   * the map viewport and editor panel state to make them fully responsive and active.
    *
-   * @param {File|Blob} fileOrBlob - KMZ/KML file blob
-   * @param {object} overlayManager - OverlayManager instance
-   * @param {object} [options] - Options passed to importKMZ
+   * @param {File|Blob|Response|ReadableStream} fileOrBlob - KMZ/KML data source
+   * @param {object} overlayManager - The active OverlayManager instance
+   * @param {object} [options] - Options passed to importKMZ (e.g. clearExisting)
    * @returns {Promise<object[]>} Resolves to the array of imported feature properties
    */
   static async importToManager(fileOrBlob, overlayManager, options = {}) {
@@ -388,6 +389,19 @@ export class KmzImporter {
     if (typeof overlayManager.importKMZ !== 'function') {
       throw new Error('[KmzImporter] The provided object is not a valid OverlayManager instance.');
     }
-    return await overlayManager.importKMZ(fileOrBlob, options);
+
+    let inputData = fileOrBlob;
+
+    // Handle standard Response objects (from fetch calls)
+    if (fileOrBlob instanceof Response) {
+      inputData = await fileOrBlob.blob();
+    }
+    // Handle raw ReadableStreams (or objects with getReader methods)
+    else if (fileOrBlob && typeof fileOrBlob.getReader === 'function') {
+      const response = new Response(fileOrBlob);
+      inputData = await response.blob();
+    }
+
+    return await overlayManager.importKMZ(inputData, options);
   }
 }

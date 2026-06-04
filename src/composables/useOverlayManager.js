@@ -41,13 +41,16 @@ export function useOverlayManager(mapRef, options = {}) {
     if (options.overlayManager) {
       instance = options.overlayManager;
       isInternalManager.value = false;
+      // Re-attach the external manager to the current active map
+      instance.attach(map);
     } else {
       instance = new OverlayManager(map, options);
       isInternalManager.value = true;
     }
 
-    // Populate initial features from manager
+    // Populate initial features and selection from manager (crucial for pre-loaded overlays)
     features.value = instance.getFeatures();
+    selectedFeature.value = instance.getSelectedFeature();
 
     // Wire events → reactive refs
     instance.on('feature:select', (props) => {
@@ -74,6 +77,8 @@ export function useOverlayManager(mapRef, options = {}) {
     if (manager.value) {
       if (isInternalManager.value) {
         manager.value.destroy();
+      } else {
+        manager.value.detach(); // Detach from map but preserve shapes in memory
       }
       manager.value = null;
     }

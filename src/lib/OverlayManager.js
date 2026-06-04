@@ -81,7 +81,6 @@ export class OverlayManager extends EventEmitter {
       source: this._vectorSource,
       style: (feature) => this._computeStyle(feature),
     });
-    this._map.addLayer(this._vectorLayer);
 
     // Interaction references
     this._drawInteraction = null;
@@ -98,7 +97,7 @@ export class OverlayManager extends EventEmitter {
     // OL event listener keys for proper cleanup via unByKey()
     this._olListenerKeys = [];
 
-    this._initInteractions();
+    this.attach(map);
   }
 
   // ── Public API: Drawing ────────────────────────────────────────
@@ -492,14 +491,22 @@ export class OverlayManager extends EventEmitter {
 
     this._syncFeatures();
 
-    // Select and pan to the first imported feature to focus user's attention
+    // Select the first imported feature to activate properties panel, and fit map view to enclose all elements
     if (importedFeatures.length > 0) {
       const firstFeature = this._vectorSource.getFeatureById(importedFeatures[0].id);
       if (firstFeature) {
         this._selectInteraction.getFeatures().clear();
         this._selectInteraction.getFeatures().push(firstFeature);
         this._setSelectedFeature(firstFeature);
-        this._panToFeature(firstFeature);
+      }
+
+      const extent = this._vectorSource.getExtent();
+      if (extent && !extent.some((val) => val === Infinity || val === -Infinity)) {
+        this._map.getView().fit(extent, {
+          padding: [80, 80, 80, 80],
+          duration: 800,
+          maxZoom: 18,
+        });
       }
     }
 
@@ -509,10 +516,25 @@ export class OverlayManager extends EventEmitter {
   // ── Public API: Lifecycle ──────────────────────────────────────
 
   /**
-   * Tear down all interactions, layers, and event listeners.
-   * Must be called when the overlay manager is no longer needed.
+   * Attach the overlay manager (layer and interactions) to an OpenLayers Map.
+   * @param {import('ol/Map').default} map
    */
-  destroy() {
+  attach(map) {
+    if (!map) return;
+    this.detach(); // Safely detach from previous map first
+
+    this._map = map;
+    this._map.addLayer(this._vectorLayer);
+    this._initInteractions();
+  }
+
+  /**
+   * Detach the overlay manager (layer and interactions) from the map.
+   * This cleans the map canvas completely but preserves all shapes in memory.
+   */
+  detach() {
+    if (!this._map) return;
+
     this.stopDrawing();
 
     // Remove OL interactions
@@ -524,12 +546,18 @@ export class OverlayManager extends EventEmitter {
       this._transformInteraction,
     ];
     for (const interaction of interactions) {
-      if (interaction) this._map.removeInteraction(interaction);
+      if (interaction) {
+        try {
+          this._map.removeInteraction(interaction);
+        } catch (_) {}
+      }
     }
 
     // Remove vector layer
     if (this._vectorLayer) {
-      this._map.removeLayer(this._vectorLayer);
+      try {
+        this._map.removeLayer(this._vectorLayer);
+      } catch (_) {}
     }
 
     // Unregister all OL event listeners using proper unByKey
@@ -538,8 +566,18 @@ export class OverlayManager extends EventEmitter {
     }
     this._olListenerKeys = [];
 
-    // Clear state
-    this._selectedFeature = null;
+    this._map = null;
+  }
+
+  /**
+   * Tear down all interactions, layers, and event listeners.
+   * Must be called when the overlay manager is no longer needed.
+   */
+  destroy() {
+    this.detach();
+    if (this._vectorSource) {
+      this._vectorSource.clear();
+    }
     this.removeAllListeners();
   }
 
